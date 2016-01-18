@@ -1,6 +1,5 @@
 package it.jaschke.alexandria;
 
-import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
@@ -24,6 +23,7 @@ import android.widget.Toast;
 import com.google.android.gms.common.api.CommonStatusCodes;
 import com.google.android.gms.vision.barcode.Barcode;
 
+import it.jaschke.alexandria.Utils.Utils;
 import it.jaschke.alexandria.data.AlexandriaContract;
 import it.jaschke.alexandria.services.BookService;
 import it.jaschke.alexandria.services.DownloadImage;
@@ -35,11 +35,7 @@ public class AddBook extends Fragment implements LoaderManager.LoaderCallbacks<C
     private final int LOADER_ID = 1;
     private View rootView;
     private final String EAN_CONTENT = "eanContent";
-    private static final String SCAN_FORMAT = "scanFormat";
-    private static final String SCAN_CONTENTS = "scanContents";
     private static final int RC_BARCODE_CAPTURE = 9001;
-    private String mScanFormat = "Format:";
-    private String mScanContents = "Contents:";
 
 
     public AddBook() {
@@ -58,16 +54,14 @@ public class AddBook extends Fragment implements LoaderManager.LoaderCallbacks<C
 
         rootView = inflater.inflate(R.layout.fragment_add_book, container, false);
         ean = (EditText) rootView.findViewById(R.id.ean);
-
+        getActivity().setTitle(R.string.scan);
         ean.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                //no need
             }
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                //no need
             }
 
             @Override
@@ -81,7 +75,6 @@ public class AddBook extends Fragment implements LoaderManager.LoaderCallbacks<C
                     clearFields();
                     return;
                 }
-                //Once we have an ISBN, start a book intent
                 findBook(ean);
             }
         });
@@ -130,11 +123,17 @@ public class AddBook extends Fragment implements LoaderManager.LoaderCallbacks<C
 
 
     private void findBook(String ean) {
-        Intent bookIntent = new Intent(getActivity(), BookService.class);
-        bookIntent.putExtra(BookService.EAN, ean);
-        bookIntent.setAction(BookService.FETCH_BOOK);
-        getActivity().startService(bookIntent);
-        AddBook.this.restartLoader();
+        if (Utils.isNetworkAvailable(getContext())) {
+            Intent bookIntent = new Intent(getActivity(), BookService.class);
+            bookIntent.putExtra(BookService.EAN, ean);
+            bookIntent.setAction(BookService.FETCH_BOOK);
+            getActivity().startService(bookIntent);
+            AddBook.this.restartLoader();
+            Utils.hideKeyboard(getActivity());
+        } else {
+            Toast.makeText(getActivity(), getString(R.string.no_internet_connection), Toast.LENGTH_SHORT).show();
+            Utils.hideKeyboard(getActivity());
+        }
     }
 
 
@@ -160,10 +159,6 @@ public class AddBook extends Fragment implements LoaderManager.LoaderCallbacks<C
                 null
         );
     }
-
-
-
-
 
 
     @Override
@@ -210,11 +205,6 @@ public class AddBook extends Fragment implements LoaderManager.LoaderCallbacks<C
         rootView.findViewById(R.id.delete_button).setVisibility(View.INVISIBLE);
     }
 
-    @Override
-    public void onAttach(Activity activity) {
-        super.onAttach(activity);
-        activity.setTitle(R.string.scan);
-    }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -223,9 +213,7 @@ public class AddBook extends Fragment implements LoaderManager.LoaderCallbacks<C
                 if (data != null) {
                     Barcode barcode = data.getParcelableExtra(BarcodeCaptureActivity.BarcodeObject);
                     Toast.makeText(getActivity(), barcode.displayValue, Toast.LENGTH_SHORT).show();
-                   ean.setText(barcode.displayValue);
-
-
+                    ean.setText(barcode.displayValue);
                 } else {
 
                     Log.d(TAG, "No barcode captured, intent data is null");
